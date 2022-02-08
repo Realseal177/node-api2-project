@@ -2,7 +2,7 @@ const Post = require('./posts-model');
 const router = require('express').Router();
 
 router.get('/', (req, res) => {
-    Post.find(req.query)
+    Post.find()
       .then(posts => {
         res.status(200).json(posts);
       })
@@ -31,69 +31,84 @@ router.get('/', (req, res) => {
       });
   });
   
-  router.get('/:id/dogs', (req, res) => {
-    Post.findDogs(req.params.id)
-      .then(dogs => {
-        if (dogs.length > 0) {
-          res.status(200).json(dogs);
-        } else {
-          res.status(404).json({ message: 'No dogs for this posts' });
-        }
-      })
-      .catch(error => {
-        console.log(error);
-        res.status(500).json({
-          message: 'Error retrieving the dogs for this posts',
-        });
-      });
-  });
-  
   router.post('/', (req, res) => {
-    Post.add(req.body)
+    if (!req.body.title || !req.body.contents) {
+        res.status(400).json({
+            message: 'Please provide title and contents for the post'
+        })
+    } else {
+    Post.insert(req.body)
       .then(posts => {
-        res.status(201).json(posts);
+            res.status(201).json({
+                id: posts.id,
+                ...req.body
+            })
       })
       .catch(error => {
         console.log(error);
         res.status(500).json({
-          message: 'Error adding the posts',
+          message: 'Please provide title and contents for the post',
         });
       });
+    }
   });
   
-  router.delete('/:id', (req, res) => {
-    Post.remove(req.params.id)
-      .then(count => {
-        if (count > 0) {
-          res.status(200).json({ message: 'The posts has been nuked' });
+  router.delete('/:id', async (req, res) => {
+      try {
+        const post = await Post.findById(req.params.id);
+        if (!post) {
+            res.status(404).json({ message: "The post with the specified ID does not exist" })
         } else {
-          res.status(404).json({ message: 'The posts could not be found' });
+            await Post.remove(req.params.id);
+            res.status(200).json(post)
         }
-      })
-      .catch(error => {
-        console.log(error);
+      } catch (error) {
         res.status(500).json({
-          message: 'Error removing the posts',
-        });
-      });
+          message: 'The post could not be removed',
+        })
+      }
   });
   
   router.put('/:id', (req, res) => {
     const changes = req.body;
-    Post.update(req.params.id, changes)
-      .then(posts => {
-        if (posts) {
-          res.status(200).json(posts);
-        } else {
-          res.status(404).json({ message: 'The posts could not be found' });
-        }
-      })
-      .catch(error => {
-        console.log(error);
-        res.status(500).json({
-          message: 'Error updating the posts',
-        });
-      });
+    if (!changes.title || !changes.contents) {
+        res.status(400).json({ message: "Please provide title and contents for the post" })
+    } else {
+        Post.update(req.params.id, changes)
+        .then(updatedPost => {
+            if (!updatedPost) {
+                res.status(404).json({ message: "The post with the specified ID does not exist" })
+            } else {
+                res.status(200).json({
+                    ...changes,
+                    id: Number(req.params.id)
+                })
+            }
+        })
+        .catch(error => {
+            console.log(error);
+            res.status(500).json({ message: "The post information could not be modified" })
+        })
+    }
   });
+
+  router.get('/:id/comments', (req, res) => {
+    Post.findPostComments(req.params.id)
+        .then(comments => {
+            if (comments.length > 0) {
+                res.status(200).json(comments);
+            } else {
+                res.status(404).json({
+                    message: "The post with the specified ID does not exist"
+                })
+            }
+        })
+        .catch(error => {
+            console.log(error)
+            res.status(500).json({
+                message: "The comments information could not be retrieved"
+            })
+        })
+  })
 
   module.exports = router;
